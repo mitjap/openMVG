@@ -1764,6 +1764,7 @@ Nikon;Nikon E2Ns;8.8
 Nikon;Nikon Coolpix 300;4.8
 Nikon;Nikon E2s;8.8
 Nokia;Nokia 808 PureView;1
+OLYMPUS IMAGING CORP.  ;E-P2;17.3
 Olympus;Olympus PEN E-PL6;17.3
 Olympus;Olympus PEN E-P5;17.3
 Olympus;Olympus VH-520;6.16

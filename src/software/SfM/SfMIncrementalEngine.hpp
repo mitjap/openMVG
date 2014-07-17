@@ -41,8 +41,11 @@ private:
   /// Read input data (point correspondences, K matrix)
   bool ReadInputData();
 
+  bool getCameraPair(const std::pair<size_t, size_t> & pairIndex, BrownPinholeCamera &camI, BrownPinholeCamera &camJ, openMVG::tracks::STLMAPTracks & map_tracksCommon, std::vector<size_t> & vec_inliers, double & errorMax);
+  double scorePairChoice(const std::pair<size_t,size_t> & pairIndex);
+
   /// Find the best initial pair
-  bool InitialPairChoice( std::pair<size_t,size_t> & initialPairIndex);
+  bool InitialPairChoice(std::pair<size_t,size_t> & initialPairIndex);
 
   /// Compute the initial 3D seed (First camera t=0; R=Id, second estimated by 5 point algorithm)
   bool MakeInitialPair3D(const std::pair<size_t,size_t> & initialPair);

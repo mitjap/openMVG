@@ -316,74 +316,10 @@ bool IncrementalReconstructionEngine::ReadInputData()
   return true;
 }
 
-/// Find the best initial pair
-bool IncrementalReconstructionEngine::InitialPairChoice( std::pair<size_t, size_t> & initialPairIndex)
+bool IncrementalReconstructionEngine::getCameraPair(const std::pair<size_t, size_t> & pairIndex, BrownPinholeCamera &camI, BrownPinholeCamera &camJ, openMVG::tracks::STLMAPTracks & map_tracksCommon, std::vector<size_t> & vec_inliers, double & errorMax)
 {
-  if (_initialpair != std::make_pair<size_t,size_t>(0,0))
-  {
-    initialPairIndex = _initialpair;
-  }
-  else
-  {
-    std::cout << std::endl
-      << "---------------------------------------------------\n"
-      << "IncrementalReconstructionEngine::InitialPairChoice\n"
-      << "---------------------------------------------------\n"
-      << " The best F matrix validated pair are displayed\n"
-      << " Choose one pair manually by typing the two integer indexes\n"
-      << "---------------------------------------------------\n"
-      << std::endl;
-
-    // Display to the user the 10 top Fundamental matches pair
-    std::vector< size_t > vec_NbMatchesPerPair;
-    for (openMVG::tracks::STLPairWiseMatches::const_iterator iter = _map_Matches_F.begin();
-      iter != _map_Matches_F.end(); ++iter)
-    {
-      vec_NbMatchesPerPair.push_back(iter->second.size());
-    }
-    // sort in descending order
-    using namespace indexed_sort;
-    std::vector< sort_index_packet_descend< double, int> > packet_vec(vec_NbMatchesPerPair.size());
-    sort_index_helper(packet_vec, &vec_NbMatchesPerPair[0], std::min((size_t)10, _map_Matches_F.size()));
-
-    for (size_t i = 0; i < std::min((size_t)10, _map_Matches_F.size()); ++i) {
-      size_t index = packet_vec[i].index;
-      openMVG::tracks::STLPairWiseMatches::const_iterator iter = _map_Matches_F.begin();
-      std::advance(iter, index);
-      std::cout << "(" << iter->first.first << "," << iter->first.second <<")\t\t"
-        << iter->second.size() << " matches" << std::endl;
-    }
-
-    // Manual choice of the initial pair
-    std::cout << std::endl << " type INITIAL pair Indexes: X enter Y enter\n";
-    int val, val2;
-    if ( std::cin >> val && std::cin >> val2) {
-      initialPairIndex.first = val;
-      initialPairIndex.second = val2;
-    }
-  }
-
-  std::cout << "\nPutative starting pair is: (" << initialPairIndex.first
-      << "," << initialPairIndex.second << ")" << std::endl;
-
-  // Check validity of the initial pair indices:
-  if (_map_feats.find(initialPairIndex.first) == _map_feats.end() ||
-      _map_feats.find(initialPairIndex.second) == _map_feats.end())
-  {
-    std::cerr << "At least one of the initial pair indices is invalid."
-      << std::endl;
-    return false;
-  }
-  return true;
-}
-
-bool IncrementalReconstructionEngine::MakeInitialPair3D(const std::pair<size_t,size_t> & initialPair)
-{
-  // Compute robust Essential matrix for ImageId [I,J]
-  // use min max to have I < J
-  const size_t I = min(initialPair.first,initialPair.second);
-  const size_t J = max(initialPair.first,initialPair.second);
-
+  int I = pairIndex.first, J = pairIndex.second;
+  
   // Check validity of the initial pair indices:
   if (_map_feats.find(I) == _map_feats.end() ||
        _map_feats.find(J) == _map_feats.end())
@@ -394,7 +330,6 @@ bool IncrementalReconstructionEngine::MakeInitialPair3D(const std::pair<size_t,s
   }
 
   // a.coords Get common tracks between the two images
-  openMVG::tracks::STLMAPTracks map_tracksCommon;
   std::set<size_t> set_imageIndex;
   set_imageIndex.insert(I);
   set_imageIndex.insert(J);
@@ -426,8 +361,7 @@ bool IncrementalReconstructionEngine::MakeInitialPair3D(const std::pair<size_t,s
   }
 
   Mat3 E = Mat3::Identity();
-  std::vector<size_t> vec_inliers;
-  double errorMax = std::numeric_limits<double>::max();
+  errorMax = std::numeric_limits<double>::max();
 
   const openMVG::SfMIO::IntrinsicCameraInfo & intrinsicCamI = _vec_intrinsicGroups[_vec_camImageNames[I].m_intrinsicId];
   const openMVG::SfMIO::IntrinsicCameraInfo & intrinsicCamJ = _vec_intrinsicGroups[_vec_camImageNames[J].m_intrinsicId];
@@ -449,12 +383,12 @@ bool IncrementalReconstructionEngine::MakeInitialPair3D(const std::pair<size_t,s
     std::cerr << " /!\\ Robust estimation failed to compute E for the initial pair" << std::endl;
     return false;
   }
-
+  /*
   std::cout << std::endl
     << "-- Robust Essential Matrix estimation " << std::endl
     << "-- " << x1.cols() << " / " << vec_inliers.size() << " tentative/inliers" << std::endl
     << "-- Threshold: " << errorMax << std::endl;
-
+  */
   //--> Estimate the best possible Rotation/Translation from E
   Mat3 RJ;
   Vec3 tJ;
@@ -465,15 +399,183 @@ bool IncrementalReconstructionEngine::MakeInitialPair3D(const std::pair<size_t,s
     std::cout << " /!\\ Failed to compute initial R|t for the initial pair" << std::endl;
     return false;
   }
+  /*
   std::cout << std::endl
     << "-- Rotation|Translation matrices: --" << std::endl
     << RJ << std::endl << std::endl << tJ << std::endl;
-
+  */
   //-> Triangulate the common tracks
   //--> Triangulate the point
 
-  BrownPinholeCamera camI(intrinsicCamI.m_focal, intrinsicCamI.m_K(0,2), intrinsicCamI.m_K(1,2), Mat3::Identity(), Vec3::Zero());
-  BrownPinholeCamera camJ(intrinsicCamJ.m_focal, intrinsicCamJ.m_K(0,2), intrinsicCamJ.m_K(1,2), RJ, tJ);
+  camI = BrownPinholeCamera(intrinsicCamI.m_focal, intrinsicCamI.m_K(0,2), intrinsicCamI.m_K(1,2), Mat3::Identity(), Vec3::Zero());
+  camJ = BrownPinholeCamera(intrinsicCamJ.m_focal, intrinsicCamJ.m_K(0,2), intrinsicCamJ.m_K(1,2), RJ, tJ);
+
+  return true;
+}
+
+///
+double IncrementalReconstructionEngine::scorePairChoice(const std::pair<size_t,size_t> & pairIndex)
+{
+  BrownPinholeCamera camI(-1, -1, -1), camJ(-1, -1, -1);
+  openMVG::tracks::STLMAPTracks map_tracksCommon;
+  std::vector<size_t> vec_inliers;
+  double errorMax;
+
+  if (!getCameraPair(pairIndex, camI, camJ, map_tracksCommon, vec_inliers, errorMax))
+  {
+    return -1;
+  }
+
+  int I = pairIndex.first, J = pairIndex.second;
+  
+  // b. Get corresponding features
+  std::vector<SIOPointFeature> & vec_featI = _map_feats[I];
+  std::vector<SIOPointFeature> & vec_featJ = _map_feats[J];
+
+  std::vector<Vec3> vec_3dPoint;
+  std::vector<double> vec_triangulationResidual;
+
+    std::vector<IndMatch> vec_index;
+  for (openMVG::tracks::STLMAPTracks::const_iterator
+    iterT = map_tracksCommon.begin();
+    iterT != map_tracksCommon.end();
+    ++iterT)
+  {
+    tracks::submapTrack::const_iterator iter = iterT->second.begin();
+    tracks::submapTrack::const_iterator iter2 = iterT->second.begin();
+    std::advance(iter2,1);
+    vec_index.push_back(IndMatch(iter->second, iter2->second));
+  }
+
+  SfMRobust::triangulate2View_Vector(camI._P, camJ._P,
+    vec_featI, vec_featJ,
+    vec_index, &vec_3dPoint, &vec_triangulationResidual);
+
+  std::vector< double > angles;
+
+  int cptIndex = 0;
+  for (openMVG::tracks::STLMAPTracks::const_iterator
+    iterT = map_tracksCommon.begin();
+    iterT != map_tracksCommon.end();
+    ++iterT, cptIndex++)
+  {
+    size_t trackId = iterT->first;
+    const Vec2 xI = vec_featI[vec_index[cptIndex]._i].coords().cast<double>();
+    const Vec2 xJ = vec_featJ[vec_index[cptIndex]._j].coords().cast<double>();
+
+    if (find(vec_inliers.begin(), vec_inliers.end(), cptIndex) != vec_inliers.end())
+    {
+      //-- Depth
+      //-- Residuals
+      //-- Angle between rays ?
+      if (camI.Depth(vec_3dPoint[cptIndex]) > 0
+        && camJ.Depth(vec_3dPoint[cptIndex]) > 0)  {
+        double angle = BrownPinholeCamera::AngleBetweenRay(camI, camJ, xI, xJ);
+		angles.push_back(angle);
+      }
+    }
+  }
+
+  std::sort(angles.begin(), angles.end());
+  double score = angles.empty() ? -1 : vec_inliers.size() * std::pow(abs(std::sin(angles[angles.size() / 2] * 3.14159265 / 180)), 2) / errorMax;
+
+  std::cerr << I << " " << J << " " << vec_inliers.size() << " " << errorMax << " " << angles[angles.size() / 2] << " " << std::pow(abs(std::sin(angles[angles.size() / 2] * 3.14159265 / 180)), 2) << " " << score << std::endl;
+
+  return score;
+}
+
+/// Find the best initial pair
+bool IncrementalReconstructionEngine::InitialPairChoice(std::pair<size_t, size_t> & initialPairIndex)
+{
+  if (_initialpair != std::make_pair<size_t,size_t>(0,0))
+  {
+    initialPairIndex = _initialpair;
+  }
+  else
+  {
+    std::cout << std::endl
+      << "---------------------------------------------------\n"
+      << "IncrementalReconstructionEngine::InitialPairChoice\n"
+      << "---------------------------------------------------\n"
+      << " The best F matrix validated pair are displayed\n"
+      << " Choose one pair manually by typing the two integer indexes\n"
+      << "---------------------------------------------------\n"
+      << std::endl;
+
+    // Display to the user the 10 top Fundamental matches pair
+    std::vector< double > vec_NbMatchesPerPair;
+    for (openMVG::tracks::STLPairWiseMatches::const_iterator iter = _map_Matches_F.begin();
+      iter != _map_Matches_F.end(); ++iter)
+    {
+	  std::cerr << "\ndone:" << double(vec_NbMatchesPerPair.size()) / _map_Matches_F.size() << std::endl;
+      vec_NbMatchesPerPair.push_back(scorePairChoice(iter->first));
+    }
+
+	std::cerr <<"\nscores:\n";
+	for (int i = 0; i <vec_NbMatchesPerPair.size(); i++) {
+		std::cerr << vec_NbMatchesPerPair[i] << std::endl;
+	}
+    // sort in descending order
+    using namespace indexed_sort;
+    std::vector< sort_index_packet_descend< double, int> > packet_vec(vec_NbMatchesPerPair.size());
+    sort_index_helper(packet_vec, &vec_NbMatchesPerPair[0], std::min((size_t)10, _map_Matches_F.size()));
+
+    for (size_t i = 0; i < std::min((size_t)10, _map_Matches_F.size()); ++i) {
+      size_t index = packet_vec[i].index;
+      openMVG::tracks::STLPairWiseMatches::const_iterator iter = _map_Matches_F.begin();
+      std::advance(iter, index);
+      std::cout << "(" << iter->first.first << "," << iter->first.second <<")\t\t"
+        << iter->second.size() << " matches" << std::endl;
+
+	  std::cerr <<"CHOSEN:" << packet_vec[i].val << std::endl;
+	  initialPairIndex.first = iter->first.first;
+	  initialPairIndex.second = iter->first.second;
+	  break;
+    }
+
+    /*
+	// Manual choice of the initial pair
+    std::cout << std::endl << " type INITIAL pair Indexes: X enter Y enter\n";
+    int val, val2;
+    if ( std::cin >> val && std::cin >> val2) {
+      initialPairIndex.first = val;
+      initialPairIndex.second = val2;
+    }
+	*/
+  }
+
+  std::cout << "\nPutative starting pair is: (" << initialPairIndex.first
+      << "," << initialPairIndex.second << ")" << std::endl;
+
+  // Check validity of the initial pair indices:
+  if (_map_feats.find(initialPairIndex.first) == _map_feats.end() ||
+      _map_feats.find(initialPairIndex.second) == _map_feats.end())
+  {
+    std::cerr << "At least one of the initial pair indices is invalid."
+      << std::endl;
+    return false;
+  }
+  return true;
+}
+
+bool IncrementalReconstructionEngine::MakeInitialPair3D(const std::pair<size_t,size_t> & initialPair)
+{
+  // Compute robust Essential matrix for ImageId [I,J]
+  // use min max to have I < J
+  const size_t I = min(initialPair.first,initialPair.second);
+  const size_t J = max(initialPair.first,initialPair.second);
+
+  BrownPinholeCamera camI(-1, -1, -1), camJ(-1, -1, -1);
+  openMVG::tracks::STLMAPTracks map_tracksCommon;
+  std::vector<size_t> vec_inliers;
+  double errorMax;
+
+  if (!getCameraPair(initialPair, camI, camJ, map_tracksCommon, vec_inliers, errorMax))
+    return false;
+
+  // b. Get corresponding features
+  std::vector<SIOPointFeature> & vec_featI = _map_feats[I];
+  std::vector<SIOPointFeature> & vec_featJ = _map_feats[J];
 
   std::vector<IndMatch> vec_index;
   for (openMVG::tracks::STLMAPTracks::const_iterator
@@ -495,7 +597,7 @@ bool IncrementalReconstructionEngine::MakeInitialPair3D(const std::pair<size_t,s
 
   //- Add reconstructed point to the reconstruction data
   //- Write corresponding that the track have a corresponding 3D point
-  cptIndex = 0;
+  int cptIndex = 0;
   for (openMVG::tracks::STLMAPTracks::const_iterator
     iterT = map_tracksCommon.begin();
     iterT != map_tracksCommon.end();
@@ -534,7 +636,6 @@ bool IncrementalReconstructionEngine::MakeInitialPair3D(const std::pair<size_t,s
 
   std::cout << "--Triangulated 3D points count: " << vec_inliers.size() << "\n";
   std::cout << "--Triangulated 3D points count under threshold: " << _reconstructorData.map_3DPoints.size()  << "\n";
-  std::cout << "--Putative correspondences: " << x1.cols()  << "\n";
 
   _set_remainingImageId.erase(I);
   _set_remainingImageId.erase(J);

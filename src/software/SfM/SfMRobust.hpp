@@ -194,9 +194,11 @@ void triangulate2View_Vector(const Mat34 & P1,
   {
     double dMin = *min_element(pvec_residual->begin(), pvec_residual->end()),
       dMax = *max_element(pvec_residual->begin(), pvec_residual->end());
-    std::cout << std::endl
+    /*
+	std::cout << std::endl
       << "SfMRobust::triangulate2View_Vector" << std::endl
       << "\t-- Residual min max -- " << dMin <<"\t" << dMax << std::endl;
+	  */
   }
 }
 
